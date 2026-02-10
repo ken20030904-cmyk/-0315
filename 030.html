@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>拼吧！雄鷹 - 消除挑戰</title>
+    <style>
+        :root {
+            /* 圖片風格配色 */
+            --bg-color: #ffffff;
+            --text-orange: #ff6b4a; /* 標題"拼"的顏色 */
+            --text-green: #4a6a4e;  /* 標題"雄鷹"的顏色 */
+            --grid-border: #fceea7; /* 棋盤邊框淺黃 */
+            --grid-bg: #fffbf0;     /* 棋盤背景米黃 */
+            --grid-line: #f0e68c;
+            
+            /* 方塊顏色 (依照圖片) */
+            --c-pink: #ff85c0;   /* 大學會凝聚 */
+            --c-green: #69f0ae;  /* 對話 */
+            --c-blue: #4fc3f7;   /* 培育 */
+            --c-orange: #ffb74d; /* 信仰 */
+            --c-yellow: #fff176; /* 機會方塊 */
+            
+            --cell-size: 38px;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        /* --- 標題區 --- */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+            margin-bottom: 5px;
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        .title-group {
+            text-align: center;
+        }
+
+        .main-title {
+            font-size: 48px;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 2px;
+        }
+        
+        .t-orange { color: var(--text-orange); transform: rotate(-3deg); display: inline-block; }
+        .t-green { color: var(--text-green); font-size: 36px; display: inline-block; vertical-align: middle; }
+        
+        .level-tag {
+            position: absolute;
+            left: 20px;
+            top: 20px;
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        
+        /* --- 遊戲主容器 --- */
+        .game-area {
+            display: flex;
+            gap: 20px;
+            align-items: flex-start;
+            padding: 10px;
+        }
+
+        /* --- 左側：庫存區 --- */
+        .sidebar {
+            width: 220px;
+            background: #fff;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            height: 70vh;
+            overflow-y: auto;
+            /* 讓卷軸漂亮一點 */
+            scrollbar-width: thin; 
+        }
+
+        .inventory-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+            border-bottom: 1px dashed #eee;
+            padding-bottom: 5px;
+        }
+
+        .shape-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 80px;
+            margin-right: 10px;
+        }
+
+        .shape-preview {
+            cursor: grab;
+            transition: transform 0.1s;
+            margin-bottom: 5px;
+        }
+        .shape-preview:active { cursor: grabbing; transform: scale(0.95); }
+        .shape-preview.disabled { opacity: 0.3; pointer-events: none; filter: grayscale(100%); }
+
+        .shape-label {
+            font-size: 12px;
+            color: #555;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .count-badge {
+            background: var(--text-orange);
+            color: white;
+            border-radius: 12px;
+            padding: 2px 8px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        /* 小方塊繪製 */
+        .mini-row { display: flex; justify-content: center;}
+        .mini-cell {
+            width: 18px;
+            height: 18px;
+            margin: 1px;
+            border-radius: 2px;
+        }
+
+        /* --- 中間：棋盤 --- */
+        .board-container {
+            background: var(--grid-border);
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        #grid {
+            display: grid;
+            background-color: var(--grid-bg);
+            /* 格線 */
+            gap: 2px; 
+            border: 2px solid var(--grid-border);
+        }
+
+        .cell {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            background-color: #fff; /* 空格子顏色 */
+            border-radius: 2px;
+        }
+
+        .cell.filled {
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1);
+        }
+        
+        /* 消除動畫 */
+        .cell.clearing {
+            animation: flash 0.4s ease-out forwards;
+        }
+        @keyframes flash {
+            0% { transform: scale(1); filter: brightness(2); }
+            50% { background-color: white; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        /* --- 右側：計分板 --- */
+        .score-panel {
+            width: 120px;
+            text-align: center;
+            background: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border: 2px solid var(--grid-border);
+        }
+        
+        .score-title { font-size: 14px; color: #888; margin-bottom: 5px; letter-spacing: 1px;}
+        .score-val { font-size: 36px; font-weight: bold; color: var(--text-orange); line-height: 1;}
+        .score-unit { font-size: 12px; color: #aaa; }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .btn {
+            padding: 8px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        .btn:hover { background: #f5f5f5; }
+        .btn-reset { color: white; background: var(--text-orange); border: none; }
+        .btn-reset:hover { background: #ff5722; }
+
+        /* 顏色類別 */
+        .bg-pink { background-color: var(--c-pink); }
+        .bg-green { background-color: var(--c-green); }
+        .bg-blue { background-color: var(--c-blue); }
+        .bg-orange { background-color: var(--c-orange); }
+        .bg-yellow { background-color: var(--c-yellow); }
+
+        /* 拖曳分身 */
+        .drag-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            opacity: 0.8;
+            transform: translate(-50%, -50%) scale(1.2);
+        }
+        
+        /* 說明 */
+        .instruction {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            font-size: 12px;
+            color: #999;
+            background: rgba(255,255,255,0.9);
+            padding: 5px 10px;
+            border-radius: 5px;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="level-tag">
+            LEVEL<br>
+            <span style="font-size:18px">0315</span>
+        </div>
+        <div class="title-group">
+            <span class="main-title t-orange">拼吧！</span>
+            <span class="main-title t-green">雄鷹</span>
+            <span style="font-size: 20px; color:var(--c-orange)">■</span>
+        </div>
+    </div>
+
+    <div class="game-area">
+        <div class="sidebar" id="inventory-list">
+            </div>
+
+        <div class="board-container">
+            <div id="grid"></div>
+        </div>
+
+        <div class="score-panel">
+            <div class="score-title">SCORE</div>
+            <div class="score-val" id="lines-cleared">0</div>
+            <div class="score-unit">LINES CLEARED</div>
+            
+            <div class="controls">
+                <button class="btn" onclick="setGridSize(9)">9x9 (標準)</button>
+                <button class="btn" onclick="setGridSize(10)">10x10</button>
+                <button class="btn btn-reset" onclick="resetGame()">重新開始</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="instruction">
+        滑鼠左鍵點擊方塊可旋轉 • 右鍵可翻轉
+    </div>
+
+<script>
+    // --- 遊戲設定 ---
+    // 依據圖片定義方塊：形狀, 顏色, 名稱
+    const SHAPE_DEFS = [
+        { 
+            id: 0, 
+            label: "大學會凝聚", 
+            color: "bg-pink", 
+            matrix: [[1,1],[1,1]]  // 2x2 正方形
+        },
+        { 
+            id: 1, 
+            label: "對話", 
+            color: "bg-green", 
+            matrix: [[1,1],[1,0]] // 小L形 (3格)
+        },
+        { 
+            id: 2, 
+            label: "培育", 
+            color: "bg-blue", 
+            matrix: [[1,1,0],[0,1,1]] // Z形/S形
+        },
+        { 
+            id: 3, 
+            label: "信仰", 
+            color: "bg-orange", 
+            matrix: [[0,1,0],[1,1,1]] // T形
+        },
+        { 
+            id: 4, 
+            label: "機會方塊", 
+            color: "bg-yellow", 
+            matrix: [[1,1,1,1]] // I形 (4格)
+        }
+    ];
+
+    const INITIAL_COUNT = 5; // 每個方塊初始數量
+    let currentSize = 9;     // 圖片看起來是 9x9
+    let gridData = [];       // 0:空, object: {color}
+    let inventoryState = []; 
+    let linesCleared = 0;
+
+    // --- 初始化 ---
+    function init() {
+        // 初始化庫存
+        inventoryState = SHAPE_DEFS.map(def => ({
+            ...def,
+            count: INITIAL_COUNT,
+            currentMatrix: JSON.parse(JSON.stringify(def.matrix)) // 深拷貝
+        }));
+        
+        linesCleared = 0;
+        updateScore();
+        setGridSize(9); 
+    }
+
+    // --- 棋盤邏輯 ---
+    function setGridSize(size) {
+        currentSize = size;
+        // 建立空棋盤
+        gridData = Array(size).fill().map(() => Array(size).fill(0));
+        
+        renderGrid();
+        renderInventory();
+    }
+
+    function renderGrid() {
+        const gridEl = document.getElementById('grid');
+        gridEl.innerHTML = '';
+        
+        // CSS Grid 設定
+        gridEl.style.gridTemplateColumns = `repeat(${currentSize}, var(--cell-size))`;
+        gridEl.style.gridTemplateRows = `repeat(${currentSize}, var(--cell-size))`;
+
+        for(let y=0; y<currentSize; y++) {
+            for(let x=0; x<currentSize; x++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                cell.dataset.x = x;
+                cell.dataset.y = y;
+                
+                // 渲染已放置的方塊
+                if (gridData[y][x] !== 0) {
+                    cell.classList.add('filled');
+                    cell.classList.add(gridData[y][x].color);
+                }
+                
+                gridEl.appendChild(cell);
+            }
+        }
+    }
+
+    // --- 庫存邏輯 (左側清單) ---
+    function renderInventory() {
+        const listEl = document.getElementById('inventory-list');
+        listEl.innerHTML = '';
+
+        inventoryState.forEach((item, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'inventory-item';
+
+            // 1. 預覽圖區域
+            const infoBox = document.createElement('div');
+            infoBox.className = 'shape-info';
+
+            const preview = document.createElement('div');
+            preview.className = 'shape-preview';
+            if (item.count <= 0) preview.classList.add('disabled');
+            
+            drawMiniShape(preview, item.currentMatrix, item.color);
+            
+            // 標籤名稱
+            const label = document.createElement('div');
+            label.className = 'shape-label';
+            label.innerText = item.label;
+
+            infoBox.appendChild(preview);
+            infoBox.appendChild(label);
+
+            // 2. 數量
+            const badge = document.createElement('div');
+            badge.className = 'count-badge';
+            badge.innerText = `x ${item.count}`;
+
+            // 事件綁定
+            preview.onmousedown = (e) => handleDragStart(e, index);
+            
+            // 右鍵鏡像
+            preview.oncontextmenu = (e) => {
+                e.preventDefault();
+                if (item.count > 0) {
+                    item.currentMatrix = mirrorMatrix(item.currentMatrix);
+                    renderInventory();
+                }
+            };
+
+            wrapper.appendChild(infoBox);
+            wrapper.appendChild(badge);
+            listEl.appendChild(wrapper);
+        });
+    }
+
+    function drawMiniShape(container, matrix, colorClass) {
+        container.innerHTML = '';
+        matrix.forEach(row => {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'mini-row';
+            row.forEach(val => {
+                const cell = document.createElement('div');
+                cell.className = 'mini-cell';
+                if (val) cell.classList.add(colorClass);
+                else cell.style.visibility = 'hidden';
+                rowDiv.appendChild(cell);
+            });
+            container.appendChild(rowDiv);
+        });
+    }
+
+    // --- 矩陣操作 ---
+    function rotateMatrix(matrix) {
+        const N = matrix.length;
+        const M = matrix[0].length;
+        let result = Array(M).fill().map(() => Array(N).fill(0));
+        for (let i = 0; i < N; i++) {
+            for (let j = 0; j < M; j++) {
+                result[j][N - 1 - i] = matrix[i][j];
+            }
+        }
+        return result;
+    }
+
+    function mirrorMatrix(matrix) {
+        return matrix.map(row => [...row].reverse());
+    }
+
+    // --- 拖曳與放置 ---
+    let isDragging = false;
+    let dragIdx = -1;
+    let dragGhost = null;
+    let startX, startY;
+    let clickTime;
+
+    function handleDragStart(e, index) {
+        if (e.button !== 0) return;
+        if (inventoryState[index].count <= 0) return;
+
+        isDragging = false;
+        dragIdx = index;
+        startX = e.clientX;
+        startY = e.clientY;
+        clickTime = Date.now();
+
+        document.addEventListener('mousemove', handleDragMove);
+        document.addEventListener('mouseup', handleDragEnd);
+    }
+
+    function handleDragMove(e) {
+        if (!isDragging) {
+            if (Math.abs(e.clientX - startX) > 5 || Math.abs(e.clientY - startY) > 5) {
+                isDragging = true;
+                createGhost(inventoryState[dragIdx]);
+            }
+        }
+        if (isDragging && dragGhost) {
+            dragGhost.style.left = e.clientX + 'px';
+            dragGhost.style.top = e.clientY + 'px';
+        }
+    }
+
+    function handleDragEnd(e) {
+        document.removeEventListener('mousemove', handleDragMove);
+        document.removeEventListener('mouseup', handleDragEnd);
+
+        if (!isDragging) {
+            // 視為點擊 -> 旋轉
+            const timeDiff = Date.now() - clickTime;
+            if (timeDiff < 300) {
+                const item = inventoryState[dragIdx];
+                item.currentMatrix = rotateMatrix(item.currentMatrix);
+                renderInventory();
+            }
+        } else {
+            // 拖曳結束 -> 放置
+            attemptPlace(e.clientX, e.clientY);
+            if (dragGhost) dragGhost.remove();
+            dragGhost = null;
+        }
+        isDragging = false;
+        dragIdx = -1;
+    }
+
+    function createGhost(item) {
+        dragGhost = document.createElement('div');
+        dragGhost.className = 'drag-ghost';
+        drawMiniShape(dragGhost, item.currentMatrix, item.color);
+        document.body.appendChild(dragGhost);
+    }
+
+    function attemptPlace(x, y) {
+        const gridEl = document.getElementById('grid');
+        const rect = gridEl.getBoundingClientRect();
+
+        // 檢查是否在棋盤內
+        if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return;
+
+        const cellSize = 38; // 對應 CSS var(--cell-size)
+        const relX = x - rect.left;
+        const relY = y - rect.top;
+        
+        let gridX = Math.floor(relX / cellSize);
+        let gridY = Math.floor(relY / cellSize);
+
+        const item = inventoryState[dragIdx];
+        const matrix = item.currentMatrix;
+
+        // 中心校正
+        gridX -= Math.floor(matrix[0].length / 2);
+        gridY -= Math.floor(matrix.length / 2);
+
+        if (canPlace(matrix, gridX, gridY)) {
+            placeShape(matrix, gridX, gridY, item.color);
+            item.count--;
+            renderInventory();
+            
+            // 放置後檢查消除
+            checkLines();
+        }
+    }
+
+    function canPlace(matrix, startX, startY) {
+        for (let r = 0; r < matrix.length; r++) {
+            for (let c = 0; c < matrix[r].length; c++) {
+                if (matrix[r][c] === 1) {
+                    const targetX = startX + c;
+                    const targetY = startY + r;
+                    if (targetX < 0 || targetX >= currentSize || targetY < 0 || targetY >= currentSize) {
+                        return false;
+                    }
+                    if (gridData[targetY][targetX] !== 0) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
+    function placeShape(matrix, startX, startY, color) {
+        for (let r = 0; r < matrix.length; r++) {
+            for (let c = 0; c < matrix[r].length; c++) {
+                if (matrix[r][c] === 1) {
+                    gridData[startY + r][startX + c] = { color: color };
+                }
+            }
+        }
+        renderGrid(); // 先畫上方塊
+    }
+
+    // --- 消除邏輯 (新增功能) ---
+    function checkLines() {
+        let rowsToClear = [];
+        let colsToClear = [];
+
+        // 檢查橫列
+        for (let y = 0; y < currentSize; y++) {
+            if (gridData[y].every(cell => cell !== 0)) {
+                rowsToClear.push(y);
+            }
+        }
+        // 檢查直行
+        for (let x = 0; x < currentSize; x++) {
+            let colFull = true;
+            for (let y = 0; y < currentSize; y++) {
+                if (gridData[y][x] === 0) {
+                    colFull = false;
+                    break;
+                }
+            }
+            if (colFull) colsToClear.push(x);
+        }
+
+        if (rowsToClear.length === 0 && colsToClear.length === 0) return;
+
+        // 執行消除動畫
+        const gridEl = document.getElementById('grid');
+        const cells = gridEl.children;
+
+        // 標記要消除的格子
+        let clearedCount = 0; // 這次消了幾條線
+        
+        // 標記橫列
+        rowsToClear.forEach(y => {
+            for(let x=0; x<currentSize; x++) {
+                let cell = cells[y * currentSize + x];
+                if (!cell.classList.contains('clearing')) {
+                    cell.classList.add('clearing');
+                }
+            }
+            clearedCount++;
+        });
+
+        // 標記直行
+        colsToClear.forEach(x => {
+            for(let y=0; y<currentSize; y++) {
+                let cell = cells[y * currentSize + x];
+                if (!cell.classList.contains('clearing')) {
+                    cell.classList.add('clearing');
+                }
+            }
+            clearedCount++;
+        });
+
+        // 播放動畫後清除資料
+        setTimeout(() => {
+            rowsToClear.forEach(y => {
+                gridData[y].fill(0);
+            });
+            colsToClear.forEach(x => {
+                for(let y=0; y<currentSize; y++) gridData[y][x] = 0;
+            });
+            
+            // 更新分數
+            linesCleared += clearedCount;
+            updateScore();
+            renderGrid(); // 重繪乾淨的棋盤
+
+        }, 400); // 等待 CSS 動畫結束
+    }
+
+    function updateScore() {
+        document.getElementById('lines-cleared').innerText = linesCleared;
+    }
+
+    function resetGame() {
+        if(confirm('確定要重新開始嗎？')) {
+            init();
+        }
+    }
+
+    // 啟動
+    init();
+
+</script>
+</body>
+</html>
